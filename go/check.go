@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+    "flag"
 )
 
 var TYPES = map[string]uint16{"SOA": dns.TypeSOA, "A": dns.TypeA, "NS": dns.TypeNS, "MX": dns.TypeMX, "TXT": dns.TypeTXT,
@@ -18,7 +19,7 @@ var TYPES = map[string]uint16{"SOA": dns.TypeSOA, "A": dns.TypeA, "NS": dns.Type
 
 var lg *log.Logger
 
-const LIMIT = 10000
+var LIMIT = 10000
 
 type result struct {
 	typ    string // type to be checked, default to NS
@@ -104,7 +105,7 @@ var errstr string
 				errstr=fmt.Sprintf("(rcode: %d)", res.Rcode)
 			}
 		}
-	} 
+	}
 
 	r.err = errstr
 
@@ -124,7 +125,7 @@ var errstr string
 			}
 			r.err = fmt.Sprintf("nodata%s", errstr)
 	}
-	
+
 	return r
 }
 
@@ -137,7 +138,7 @@ func checkHandler(w http.ResponseWriter, r *http.Request) {
 	u := unbound.New()
 	defer u.Destroy()
 	setupUnbound(u)
-	result := unboundcheck(u, zone, "A") 
+	result := unboundcheck(u, zone, "A")
 	o := csv.NewWriter(w)
 	if e := o.Write(result.serialize()); e != nil {
 		lg.Printf("Failed to write csv: %s\n", e.Error())
@@ -393,12 +394,12 @@ Portfolio Checker</a> ontwikkeld, waarmee je dit op een snelle en eenvoudige man
 kunt controleren.
 
 	<div class="pagetitle"><h2>Selecteer een <em>CSV</em> bestand met domeinnamen</h2></div>
-	
+
 	<form action="upload" method="POST" enctype="multipart/form-data">
 	<input type="file" name="domainlist">
 	<input type="submit" value="Controleer">
 	</form>
-	
+
 	</div>
 
 	<div class="portfolio">
@@ -444,7 +445,7 @@ kunt controleren.
 	<p>
 	http://portfolio.sidnlabs.nl:8080/check/www.domeinnaam.nl
 	</p>
-	Bijvoorbeeld: 
+	Bijvoorbeeld:
 	<a href="check/example.nl">portfolio.sidnlabs.nl:8080/check/www.example.nl</a>
 	<p>
 	LET OP: hier wordt om 'A'-records gevraagd. De uitvoer is gelijk aan de Portfolio-Checker uitvoer (CSV).
@@ -455,7 +456,7 @@ kunt controleren.
 	<p>
 	http://portfolio.sidnlabs.nl:8080/check/domeinnaam.nl/RRtype
 	</p>
-	Bijvoorbeeld: 
+	Bijvoorbeeld:
 	<a href="check/example.nl/SOA">portfolio.sidnlabs.nl:8080/check/example.nl/TXT</a>
 	<p>
 	De lijst van DNS types die gebruikt kunnen worden is: SOA, A, NS, MX, TXT, AAAA, SRV, DS en DNSKEY .
@@ -469,7 +470,7 @@ kunt controleren.
 		<li>De taal <a href="http://www.golang.org">Go</a></li>
 	</ul>
 	De software zelf is open source en is te vinden op <a href="http://github.com/SIDN/unboundcheck">github.com/SIDN/unboundcheck</a>.
-	De gebruikte packages zijn <a href="http://github.com/miekg/dns">github.com/miekg/dns</a> en 
+	De gebruikte packages zijn <a href="http://github.com/miekg/dns">github.com/miekg/dns</a> en
 	<a href="http://github.com/miekg/unbound">github.com/miekg/unbound</a>.
 	</dd>
 	</dl>
@@ -629,6 +630,12 @@ kunt controleren.
 
 func main() {
 	var err error
+    bindPtr := flag.String("bind", ":8080", "host + port to bind to")
+    reqLimitPtr := flag.Int("limit", 10000, "limit requests per job")
+    noForm := flag.Bool("noform", false, "disable upload form")
+    flag.Parse()
+    LIMIT = *reqLimitPtr
+
 	lg, err = syslog.NewLogger(syslog.LOG_INFO, log.LstdFlags)
 	if err != nil {
 		log.Fatal("NewLogger: ", err)
@@ -637,10 +644,12 @@ func main() {
 	router.HandleFunc("/check/{domain}", checkHandler)            // ReST check a domain
 	router.HandleFunc("/check/{domain}/{type}", checkHandlerType) // ReST check a domain with a type
 	router.HandleFunc("/upload", parseHandlerCSV)
-	router.HandleFunc("/form", form)
+    if (!*noForm) {
+    	router.HandleFunc("/form", form)
+    }
 	http.Handle("/", router)
 
-	e := http.ListenAndServe(":8080", nil)
+	e := http.ListenAndServe(*bindPtr, nil)
 	if e != nil {
 		log.Fatal("ListenAndServe: ", e)
 	}
