@@ -1,0 +1,48 @@
+#!/bin/sh
+# Start/stop the DNSSEC Portfolio checker
+#
+### BEGIN INIT INFO
+# Provides:          unboundcheck
+# Required-Start:    $syslog $time
+# Required-Stop:     $syslog $time
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: DNSSEC Portfolio checker
+### END INIT INFO
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+DAEMON=/home/unboundcheck/gocheck
+CHDIR=/home/unboundcheck
+DESC=unboundcheck
+NAME=unboundcheck
+USER=unboundcheck
+ARGS=""
+
+# Include defaults if available
+if [ -r /etc/default/$NAME ]; then
+	. /etc/default/$NAME
+fi
+
+test -f $DAEMON || exit 0
+
+. /lib/lsb/init-functions
+
+case "$1" in
+start)  log_daemon_msg "Starting $DESC" "$NAME"
+        start-stop-daemon -m -b --start --chuid $USER --chdir $CHDIR --quiet --pidfile /var/run/$NAME.pid --name $NAME --startas $DAEMON -- $ARGS
+        log_end_msg $?
+        ;;
+stop)   log_daemon_msg "Stopping $DESC" "$NAME"
+        start-stop-daemon --stop --quiet --pidfile /var/run/$NAME.pid --name $NAME
+        log_end_msg $?
+        ;;
+restart) log_daemon_msg "Restarting $DESC" "$NAME"
+        start-stop-daemon --stop --retry 5 --quiet --pidfile /var/run/$NAME.pid --name $NAME
+        start-stop-daemon -m -b --start --chuid $USER --chdir $CHDIR --quiet --pidfile /var/run/$NAME.pid --name $NAME --startas $DAEMON -- $ARGS
+        log_end_msg $?
+        ;;
+*)      log_action_msg "Usage: /etc/init.d/$NAME {start|stop|restart}"
+        exit 2
+        ;;
+esac
+exit 0
